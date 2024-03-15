@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Dynamic Visualization Matrix</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+    integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA=="
+    crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <style>
+    body {
+      display: flex;
+    }
+
+    .main-content {
+      flex-grow: 1;
+      height: 95%;
+      transition: margin-right 0.1s;
+      /* Smooth transition for margin change */
+    }
+
+    textarea {
+      height: 100%;
+      background-color: #1e1e1e;
+      color: lime;
+      padding: 10px;
+      border: none;
+      font-size: 20px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    /* Optional: styling for a focused textarea */
+    textarea:focus {
+      outline: none;
+      /* Remove default focus outline */
+      border: 1px solid #007acc;
+      /* Custom focus style */
+    }
+
+    .fullscreen,
+    .fullscreen2 {
+      position: fixed;
+      padding: 10px;
+      opacity: 0.7;
+      top: 0px;
+      left: 0px;
+      width: 25%;
+      margin-left: 0px;
+      height: 100%;
+      display: none;
+      flex-direction: column;
+      background: black;
+      color: lime;
+      z-index: 1000;
+      font-size: 10px;
+    }
+
+    .fullscreen2 {
+      display: none;
+      left: 0px;
+      left: auto;
+    }
+
+    .fullscreen textarea,
+    .fullscreen2 textarea {
+      flex: 1;
+    }
+
+    #myDiagramDiv {
+      width: 100%;
+      height: 750px;
+      border: 1px solid black;
+    }
+
+    #controls {
+      position: fixed;
+      margin: 3px ;
+      z-index: 999999999;
+      bottom: 0;
+      right: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="main-content" style="    min-width: 1200px;">
+    <div id="controls">
+      <input type="text" id="searchBox" placeholder="Type to search..."  style="    min-width: 800px;">
+       <!-- Options
+         <select id="depthSelect">
+    
+      </select>
+    
+    -->   
+      <button style="    min-width: 400px;" onclick="toggleDataEntry()">Edit Data</button>
+
+    </div>
+
+    <div id="myDiagramDiv"></div>
+  </div>
+
+  <div class="fullscreen2" id="dataEntry2">
+    <textarea id="coding_text_area"></textarea>
+  </div>
+
+
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gojs/2.3.11/go.js"
+    integrity="sha512-M7U+gxFY3QgEWIEWjmBITT1ad7xSET9AWuZAKyOuV2Wlo/4TT4ZLLgq8+qG5TdYm0BCWRYjSvc7/QXJ/fJrmZg=="
+    crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <script >
+
+if(!window.location.search.includes("view")){
+  location.href = (location.href+"?view=").replaceAll("??","?")
+}
+    const urlParams = new URLSearchParams(window.location.search);
+    const view_from_url = urlParams.get('view');
+
+    var VIEW_CONTEXT =view_from_url||"";
+    var _SEARCH = "";
+    var _DEPTH = "";
+    var _DOC ="";
+// A more performance-optimized version of the app_log function.
+
+(function () {
+  // Main app_log function.
+  window.app_log = function (...data) {
+    console.log("app_log", data);
+  };
+})();
+function copyToClipboard(textToCopy) {
+  // Create a textarea element to temporarily hold the text
+  const textarea = document.createElement("textarea");
+  textarea.value = textToCopy;
+
+  // Append the textarea to the document
+  document.body.appendChild(textarea);
+
+  // Select the text in the textarea
+  textarea.select();
+
+  // Copy the selected text to the clipboard
+  document.execCommand("copy");
+
+  // Remove the textarea from the document
+  document.body.removeChild(textarea);
+}
+
+// Example usage:
+const text = "This text will be copied to the clipboard.";
+copyToClipboard(text);
+
+function removeSpecialAndInvisibleCharacters(str) {
+  return !str
+    ? str
+    : str
+        .replace(/[^a-z0-9:\.#/\s]/gi, "")
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, "");
+}
+function superTrim(str, shouldTrimAtEnd, trimString) {
+  if (!str || !trimString) {
+    return str && str.trim ? str.trim() : str;
+  }
+  if (!str.trim) {
+    return str;
+  }
+  str = str.trim();
+  str = str.replaceAll(trimString, "");
+
+  return str.trim();
+}
+function superSplit(str, separator) {
+  if (!str || !separator) {
+    return [];
+  }
+
+  return str.split(separator);
+}
+
+function fullTrim(id, end = true) {
+  var idNew = id;
+  if (idNew && idNew.trim) {
+    idNew = cleanString(idNew).trim();
+    //   ["#", "!", "@", "?"].map((mmm) => {
+    //     idNew = superTrim(idNew, end, mmm).trim();
+    //   });
+
+    return removeSpecialAndInvisibleCharacters(idNew.trim());
+  } else {
+    return idNew;
+  }
+}
+
+var currentColorIndex = {};
+
+function toggleNodeColor(node) {
+  var specialColor = node.data.specialColor
+    ? [
+        node.data.specialColor[0],
+        node.data.blinkset ? "white" : node.data.specialColor[0],
+      ]
+    : ["white", "white"];
+  currentColorIndex[node.data.key] = currentColorIndex[node.data.key] ? 0 : 1;
+  myDiagram.model.commit(function (m) {
+    m.set(node.data, "color", specialColor[currentColorIndex[node.data.key]]);
+    m.set(node.data, "shape", node.data.specialShape || "RoundedRectangle");
+    if (!node.data.keyoriginal) {
+      node.data.keyoriginal = node.data.key;
+      m.set(node.data, "keyoriginal", node.data.key);
+    }
+    m.set(
+      node.data,
+      "key",
+      (node.data.specialPrefix2 || "") +
+        (node.data.specialPrefix2 ? " " : "") +
+        (node.data.specialPrefix || "") +
+        (node.data.specialPrefix || node.data.specialPrefix2 ? "\n\n" : "") +
+        node.data.keyoriginal
+    );
+  }, "toggle color");
+}
+
+var setclearIntervals = [];
+function startColorToggle(node) {
+  toggleNodeColor(node);
+  //if  (node.data.blinkset  )
+  {
+    myDiagram.model.startTransaction("setToggle");
+    myDiagram.model.setDataProperty(node.data, "colorToggleStarted", true);
+    myDiagram.model.commitTransaction("setToggle");
+    var intervalId = setInterval(function () {
+      toggleNodeColor(node);
+    }, 500);
+    setclearIntervals.push(intervalId);
+    myDiagram.model.startTransaction("setIntervalId");
+    myDiagram.model.setDataProperty(node.data, "intervalId", intervalId);
+    myDiagram.model.commitTransaction("setIntervalId");
+  }
+}
+function beginTogBlinker(nodeData) {
+  if (nodeData.blink && !nodeData.colorToggleStarted) {
+    var node = myDiagram.findNodeForData(nodeData);
+    if (node) {
+      startColorToggle(node);
+    }
+  }
+}
+function cleanString(input) {
+  return input
+    .split("|")
+    .map((segment) => {
+      const questionMarkIndex = segment.indexOf("?");
+      return questionMarkIndex !== -1
+        ? segment.substring(0, questionMarkIndex)
+        : segment;
+    })
+    .join("|");
+}
+function cleanNthSegment(input, n = 0) {
+  let segments = input.split("|");
+
+  if (n < segments.length) {
+    const questionMarkIndex = segments[n].indexOf("?");
+    if (questionMarkIndex !== -1) {
+      segments[n] = segments[n].substring(0, questionMarkIndex);
+    }
+  }
+
+  return segments.join("|");
+}
+
+function GraphBuilder() {
+  this.nodes = {};
+  this.links = [];
+  this.sources = [];
+  this.targets = [];
+  this.node = function (id, options = {}, label = "") {
+    const defaultOptions = {
+      color: "white",
+      shape: "RoundedRectangle",
+    };
+    //app_log(id, options);
+    if (!id || !id.trim) {
+      return this;
+    }
+    //id = id.trim();
+    var tid = fullTrim(id);
+    this.nodes[tid] = this.nodes[tid] || {
+      key: tid,
+      ...defaultOptions,
+      ...options,
+    };
+    this.nodes[tid].labels = this.nodes[tid].labels || [];
+    if (label) {
+      this.nodes[tid].labels.push(label);
+    }
+    //id = id.trim();
+    /*
+
+important !
+
+
+*/
+
+    if (id.includes("?blink") || id.includes("!")) {
+      this.nodes[tid].blinkset = true;
+    }
+
+    this.nodes[tid].blink = 1000;
+    if (!this.nodes[tid].specialColor) {
+      if (id.includes("?red")) {
+        this.nodes[tid].specialColor = ["red"];
+      } else if (id.includes("?orange")) {
+        this.nodes[tid].specialColor = ["orange"];
+      } else if (id.includes("?yellow")) {
+        this.nodes[tid].specialColor = ["yellow"];
+      } else if (id.includes("?cyan")) {
+        this.nodes[tid].specialColor = ["cyan"];
+      } else if (id.includes("?green")) {
+        this.nodes[tid].specialColor = ["green"];
+      } else if (id.includes("?blue")) {
+        this.nodes[tid].specialColor = ["blue"];
+      }
+    } else {
+      this.nodes[tid].specialColor = ["white", "white"];
+    }
+
+    //if (!this.nodes[tid].specialPrefix2)
+    {
+      if (id.includes("?boy")) {
+        this.nodes[tid].specialPrefix2 = "👨";
+      } else if (id.includes("?love")) {
+        this.nodes[tid].specialPrefix2 = "😍";
+      } else if (id.includes("?sad")) {
+        this.nodes[tid].specialPrefix2 = "😢";
+      } else if (id.includes("?joke")) {
+        this.nodes[tid].specialPrefix2 = "😹";
+      }
+    }
+
+    //if (!this.nodes[tid].specialShape)
+    {
+      if (id.includes("?triangle")) {
+        this.nodes[tid].specialShape = "TriangleUp";
+      } else if (id.includes("?square")) {
+        this.nodes[tid].specialShape = "Square";
+      } else if (id.includes("?circle")) {
+        this.nodes[tid].specialShape = "Circle";
+      } else if (id.includes("?diamond") || id.includes("?question")) {
+        this.nodes[tid].specialShape = "Diamond";
+      }
+    }
+    // }
+
+    return this;
+  };
+  this.search = function (data) {
+    this.data = data;
+    return this;
+  };
+  this.connect = function (sourceId, label, targetId, options = {}) {
+    var tid = fullTrim(sourceId);
+    var ttrtid = fullTrim(targetId);
+    if (sourceId && this.nodes[tid] && targetId && this.nodes[ttrtid]) {
+      //app_log("duplicate " + sourceId, "...");
+      //return this;
+    }
+    if (!this.nodes[tid]) {
+      this.node(sourceId, null, label);
+    }
+    if (
+      (typeof targetId === "object" && !Array.isArray(targetId)) ||
+      !targetId
+    ) {
+      this.node(sourceId, targetId, label);
+      //return this;
+    }
+    if (!this.nodes[ttrtid]) {
+      this.node(targetId, null, label);
+    }
+    let link = {
+      from: tid,
+      to: ttrtid,
+      text: label,
+    };
+    Object.assign(link, options);
+    this.links.push(link);
+    return this;
+  };
+}
+// define a custom ForceDirectedLayout for this sample
+
+var linkDataArray;
+var nodeDataArray;
+var myDiagram;
+
+function displayGoJS(obj, search = "", depth = 0) {
+ var  optn = obj .optn ;
+ optn.vertical = optn.vertical !== false ?true:  optn.vertical ;
+ optn.center = optn.center||false;
+
+ document.getElementById('myDiagramDiv').style .backgroundColor = optn.color ||  document.getElementById('myDiagramDiv').style .backgroundColor;
+  const $ = go.GraphObject.make;
+  var isPreloaded = !!myDiagram;
+  if (!isPreloaded)
+    myDiagram = new go.Diagram("myDiagramDiv", {
+     // initialContentAlignment: go.Spot.Center,
+      "undoManager.isEnabled": true,
+      //  "toolManager.panningTool.isEnabled": true,
+      //"toolManager.mouseWheelBehavior": go.ToolManager.WheelZoom,
+      //initialAutoScale: go.Diagram.Uniform,
+       //"linkingTool.direction": go.LinkingTool.BackwardsOnly,
+
+      // initialAutoScale: go.Diagram.Uniform,
+     // initialAutoScale: go.Diagram.UniformToFill,
+       contentAlignment: !optn.center?go.Spot.Left: go.Spot.Center,
+     // initialDocumentSpot: go.Spot.Left,
+      initialViewportSpot: optn.left? go.Spot.Left:go.Spot.Right,
+      "animationManager.initialAnimationStyle": go.AnimationManager.None,
+      //initialAutoScale: go.Diagram.Uniform,
+      layout: $(go.TreeLayout, {
+        // comparer: go.GridLayout.smartComparer
+        //layerSpacing: 20,
+        // alignOption: go.LayeredDigraphLayout.AlignAll,
+
+        //isInitial: false,
+        //isOngoing: true,
+        layerSpacing:optn.compact ? 40:70,
+        // alignOption: go.TreeLayout.AlignAll,
+       
+        nodeSpacing:optn.compact ? 1:20,
+        // setsPortSpot: true,
+        // setsChildPortSpot: true,
+
+
+
+       /*
+       // horizontal 
+        angle: 90,
+        arrangement: go.TreeLayout.ArrangementHorizontal,
+       */
+
+        /*
+        //vertical
+        */
+        angle: optn.vertical ? 90:0,
+        //arrangement: optn.vertical? go.TreeLayout.ArrangementVertical:go.TreeLayout.ArrangementHorizontal,
+
+
+
+      }),
+    });
+
+  if (!isPreloaded)
+    myDiagram.linkTemplate = $(
+      go.Link,
+      {
+        //routing: go.Link.Orthogonal,
+
+        // corner: 10,
+
+        routing:optn.compact ?NaN: go.Link.AvoidsNodes, // this makes the link avoid the nodes
+        curve: optn.compact ?go.Link.JumpOver:NaN, // but this will make the link jump over other links
+        corner: 3, // with rounded corners
+        fromSpot: go.Spot.AllSides, // links come out from all sides
+        toSpot: go.Spot.AllSides, // and can enter any side
+        fromEndSegmentLength: 10, // gives a little space from the node
+        toEndSegmentLength: 10,
+      }, // rounded corners
+
+      $(go.Shape, new go.Binding("stroke", "color")),
+      $(go.Shape, { toArrow: "Standard" }, new go.Binding("fill", "color")),
+      new go.Binding("fromSpot", "fromSpot", go.Spot.parse), // Example of setting spots from data
+      new go.Binding("toSpot", "toSpot", go.Spot.parse),
+      $(go.TextBlock, new go.Binding("text", "text"), {
+        textAlign: "center",
+        font: "7pt helvetica, arial, sans-serif",
+        stroke: "black",
+        margin: 0,
+
+        segmentIndex: NaN,
+        segmentOrientation: go.Link.OrientUpright,
+        segmentOffset: new go.Point(5, -5),
+        segmentFraction: 0.4,
+      })
+    );
+  if (!isPreloaded)
+    myDiagram.nodeTemplate = $(
+      go.Node,
+      "Auto",
+
+      $(
+        go.Shape,
+        "Rectangle",
+
+        new go.Binding("figure", "shape"),
+        new go.Binding("fill", "color"),
+
+        {
+          
+          strokeWidth: 1,
+
+          portId: "top", // Identify this Shape as the "top" port
+          //toSpot: go.Spot.AllSides, // Links go from this port to the top side
+          //fromSpot: go.Spot.AllSides,
+          cursor: "pointer", // Cursor to show on hover
+        },
+        new go.Binding("fill", "highlight", (v) => (v ? "pink" : "lightblue")),
+        new go.Binding("stroke", "highlight", (v) => (v ? "red" : "blue")),
+        new go.Binding("strokeWidth", "highlight", (v) => (v ? 3 : 1))
+      ),
+
+      $(
+        go.TextBlock,
+        {
+          maxSize: new go.Size(100, NaN),
+          margin: 3,
+
+          // wrap: go.TextBlock.WrapFit,
+          
+          textAlign: "center",
+          // editable: true,
+
+          stroke: "black",
+        },
+
+        new go.Binding("text", "key").makeTwoWay()
+      ),
+      // Label
+      // Label
+      $(
+        go.TextBlock,
+        {
+          alignment: go.Spot.Top, // Positioning label at the top
+          alignmentFocus: go.Spot.Bottom, // Aligning the label towards the node
+        },
+        new go.Binding("text", "label")
+      ),
+      {
+        click: function (e, obj) {
+          try {
+            var node = obj.part;
+
+            var textBox = document.getElementById("searchBox");
+
+            var theUrl = extractUrl(node.data.key);
+
+            if (e.control || e.meta) {
+              // e.control for Ctrl key, e.meta for Command key
+              {
+                copyToClipboard(node.data.key);
+                //textBox.value += " "+ node.data.key.split(' ')[0] ;
+              }
+            } else {
+              if (theUrl) {
+                location.href=theUrl;//, "_blank");
+              } else {
+                textBox.value +=
+                  " ^" + node.data.key.replaceAll(" ", "*") + "$";
+                  triggerSearchProcess(textBox);
+              }
+            }
+           
+
+            if (node) {
+              var data = node.data;
+
+              var url = data.url;
+
+              if (url) {
+              }
+            }
+          } catch (error) {
+            console.log(error), "error on click";
+          }
+        },
+      },
+
+      {
+        doubleClick: function (e, obj) {
+          try {
+            var node = obj.part;
+
+            var textBox = document.getElementById("searchBox");
+
+            if (e.control || e.meta) {
+              // e.control for Ctrl key, e.meta for Command key
+              {
+                // Your code here - for example, logging the clicked part's data
+                //console.log("Command+Clicked on: ", clickedPart.data);
+                textBox.value = " " + node.data.key.split(" ")[0];
+              }
+            } else {
+              textBox.value = " ^" + node.data.key.replaceAll(" ", "*") + "$";
+            }
+            triggerSearchProcess(textBox);
+          } catch (error) {
+            console.log(error), "error on click";
+          }
+        },
+        /* doubleClick: function (e, obj) {
+          var node = obj.part;
+
+          if (node) {
+            var data = node.data;
+
+            var url = data.url;
+
+            if (url) {
+              window.open(url, "_blank");
+            }
+          }
+        },*/
+      }
+    );
+
+  if (!isPreloaded) {
+    myDiagram.addDiagramListener("Modified", (e) => {});
+
+    function getResultCountDifference() {
+      getResultCountDifference.zerolevel =
+        getResultCountDifference.zerolevel || 0;
+      getResultCountDifference.lastSearchResult =
+        getResultCountDifference.lastSearchResult || 0;
+      getResultCountDifference.currentSearchResult =
+        getResultCountDifference.currentSearchResult || 0;
+
+      getResultCountDifference.lastSearchResult =
+        getResultCountDifference.currentSearchResult;
+
+      getResultCountDifference.currentSearchResult = 0;
+
+      myDiagram.nodes.each(function (node) {
+        if (node.visible) {
+          getResultCountDifference.currentSearchResult++;
+        }
+      });
+      var diff =
+        getResultCountDifference.lastSearchResult -
+        getResultCountDifference.currentSearchResult;
+
+      if (!diff) {
+        if (!getResultCountDifference.zerolevel) {
+          getResultCountDifference.zerolevel++;
+          if (getResultCountDifference.zerolevel > 5) {
+            getResultCountDifference.zerolevel = 1;
+          }
+        }
+      }
+
+      return diff > 0 ? diff : -diff;
+    }
+
+    myDiagram.commandHandler.doKeyDown = function () {
+      var e = myDiagram.lastInput;
+      var textBox = document.getElementById("searchBox");
+      // Check if the Enter key was pressed
+      if (e.Yp.key === "Enter") {
+        console.log("Enter key pressed");
+        // myDiagram.startTransaction("highlight search 2");
+        var total = 0;
+        lastDiff = getResultCountDifference();
+        if (!lastDiff) {
+          total = 2;
+        } else {
+          total = 1;
+        }
+        myDiagram.nodes.each(function (node) {
+          if (!total) {
+            return;
+          }
+          total--;
+          if (node.visible) {
+            total++;
+            textBox.value += " ^" + node.data.key.replaceAll(" ", "*") + "$";
+          }
+          /*
+       var found =false;
+      if(node.visible){
+       
+        node.findNodesConnected().each(function (connectedNode) {
+          if(found){
+            return;
+          }
+          connectedNode.findLinksConnected().each(function (link) {
+            link.visible = true;
+          });
+          found = true;
+          connectedNode.visible= true
+          connectedNode.isHighlighted = true;
+
+        });
+      }*/
+        });
+        // myDiagram.commitTransaction("highlight search 2");
+        // adjustView();
+        triggerSearchProcess(textBox);
+
+        // Your custom logic here
+      }
+      if (e.Yp.key === "Backspace") {
+        var textBox = document.getElementById("searchBox");
+        textBox.value = textBox.value.split(" ").slice(0, -1).join(" ");
+
+        triggerSearchProcess(textBox);
+        // Your custom logic here
+      }
+
+      // Call the base method to ensure standard keydown behavior is preserved
+      go.CommandHandler.prototype.doKeyDown.call(this);
+    };
+  }
+
+  nodeDataArray = Object.values(obj.visualization.nodes).map((v) => {
+    v.key = fullTrim(v.key);
+    return v;   
+  });
+  linkDataArray = obj.visualization.links;
+  myDiagram.model = new go.GraphLinksModel(nodeDataArray, linkDataArray);
+
+  search && searchDiagram(search);
+  if (!isPreloaded)
+    myDiagram.addModelChangedListener(function (e) {
+      if (e.isTransactionFinished) {
+      }
+    });
+  if (!isPreloaded)
+    myDiagram.addDiagramListener("InitialLayoutCompleted", function (e) {
+      adjustView();
+      createInputAndDropdown();
+    });
+}
+
+function triggerSearchProcess(textBox) {
+  var textBox = textBox || document.getElementById("searchBox");
+  textBox.value = [...new Set(textBox.value.split(" "))].join(" ").trim();
+
+  searchDiagram(textBox.value, 10);
+  saveToLocalStorage(textBox.value, "10");
+}
+
+function extractUrl(text) {
+  
+  // Regular expression to match URLs
+  const urlRegex = /(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i;
+
+  // Use the regular expression to find a URL in the text
+  const match = text.match(urlRegex);
+ 
+  if (match) {
+   
+    // If a URL is found, return it
+    return match[0];
+  } else {
+    if(!VIEW_CONTEXT){
+      return location.href.split('?')[0]+"?view="+text;
+     }
+    // If no URL is found, return false
+    return false;
+  }
+}
+
+function createVisualization(fn, search = "", depth = 0) {
+  setclearIntervals.map(clearInterval);
+  nodeDataArray = null;
+  try {
+    let builder = new GraphBuilder();
+    var res = fn(builder);
+    [res].forEach((vis) => {
+      displayGoJS(vis, search, depth);
+    });
+  } catch (error) {
+    app_log(error);
+  }
+}
+
+function adjustView(z = 2) {
+  myDiagram.layout.invalidateLayout();
+  myDiagram.layoutDiagram(true);
+  //myDiagram.zoomToFit();
+  nodeDataArray.map(beginTogBlinker);
+
+  var diagramContentBounds = myDiagram.documentBounds;
+  var fixedViewportWidth = 500;
+  var fixedViewportHeight = 500;
+  var scaleX = fixedViewportWidth / diagramContentBounds.width;
+  var scaleY = fixedViewportHeight / diagramContentBounds.height;
+  var newScale = Math.min(scaleX, scaleY);
+  var center = diagramContentBounds.center;
+  myDiagram.position = new go.Point(
+    center.x - fixedViewportWidth / 2 / newScale,
+    center.y - fixedViewportHeight / 2 / newScale
+  );
+  //myDiagram.zoomToFit();
+   // newScale ;
+ 
+  var m = 0;
+  myDiagram.nodes.each(function (n) {
+    searchDiagram_matchNode_applyVisualIndicators(n);
+
+   
+  });
+  myDiagram.nodes.each(function (n) {
+   
+    if(n.visible){
+      m++;
+    }
+  });
+  myDiagram.zoomToRect(myDiagram.documentBounds
+    // myDiagram.documentBounds
+  );
+  //myDiagram.zoomToFit();
+  myDiagram.scale = 1;
+
+  //
+
+}
+function searchDiagram_matchNode_applyVisualIndicators(node) {
+  let hasExcludedConnections = false;
+
+  //if (match)
+  {
+    node.findNodesConnected().each(function (connectedNode) {
+      if (!connectedNode.isHighlighted || !connectedNode.visible) {
+        hasExcludedConnections = true;
+      }
+    });
+  }
+
+  if (hasExcludedConnections) {
+    node.data.specialColor = ["yellow", "yellow"];
+    node.data.blinkset = true;
+    // Apply visual indicator
+    // myDiagram.model.commit(m => {
+    //   var data = m.nodeDataArray[0];  // get the first node data
+    //   m.set(data, "highlight", true);
+    // }, "flash");
+  } else {
+    node.data.specialColor = ["white", "white"];
+  }
+}
+/*
+please help implement depth into this search . depth 1 is default as is 
+depth 2 is to include all nodes that are connected to each node connected to the matching nodes . depth 3 would keep expanding along those lines 
+its a gojs search function
+
+i expect that its possible for a number of nodes to match that are not connected . a depth 2 should  include as stated earlier for all the matching nodes . the extra nodes included dont have to match the search , it just has to be connected to the matching ones ., also the search text could look like this 
+
+hello h how -are +you
+the - indicates that nodes matching 'are' be removed from the result . also the + indicated 'you'  matches must be present . with no + or - indicates may or may not be present as long as  there are other criteria etc
+
+also lets make one more update to have '=' mean exact match . also note that all matches are case insensitive 
+function searchDiagram(searchText,depth) {
+  try {
+    myDiagram.startTransaction("highlight search");
+
+    myDiagram.clearHighlighteds();
+    myDiagram.nodes.each(function (n) {
+      n.visible = false;
+    });
+    myDiagram.links.each(function (l) {
+      l.visible = false;
+    });
+
+    if (searchText) {
+      var searchRegexes = searchText
+        .split(" ")
+        .filter(function (e) {
+          return e.length > 0;
+        })
+
+        .map(function (term) {
+          return new RegExp(term, "i");
+        });
+
+      myDiagram.nodes.each(function (node) {
+        if (
+          searchRegexes.some(function (re) {
+            var labelMatch =
+              node.data.labels.map((l) => re.test(l)).filter((f) => f).length >
+              0;
+            var testRes = re.test(node.data.key);
+
+           
+            return labelMatch || testRes;
+          })
+        ) {
+          node.visible = true;
+
+          node.isHighlighted = true;
+
+          node.findLinksConnected().each(function (link) {
+            link.visible = true;
+          });
+
+          node.findNodesConnected().each(function (connectedNode) {
+            connectedNode.visible = true;
+            connectedNode.isHighlighted = false;
+          });
+        }
+      });
+    } else {
+      myDiagram.nodes.each(function (node) {
+        node.visible = true;
+        node.isHighlighted = false;
+      });
+      myDiagram.links.each(function (link) {
+        link.visible = true;
+      });
+    }
+
+    myDiagram.commitTransaction("highlight search");
+    adjustView();
+  } catch (error) {
+    app_log(error);
+  }
+}
+*/
+
+function searchDiagram(searchText, depth = 5) {
+  if (!depth) {
+    depth = 2;
+  }
+  try {
+    myDiagram.startTransaction("highlight search");
+
+    myDiagram.clearHighlighteds();
+    searchDiagram_handleVisibility(false);
+    if (searchText) {
+      var terms = searchText.split(" ").filter(function (e) {
+        return e.length > 0;
+      });
+      var matches = searchDiagram_applyFilters(terms);
+
+      myDiagram.nodes.each(function (node) {
+        searchDiagram_matchNode(node, 0, matches, depth);
+      });
+    } else {
+      searchDiagram_handleVisibility(true);
+    }
+
+    myDiagram.commitTransaction("highlight search");
+    adjustView();
+  } catch (error) {
+    app_log(error);
+  }
+}
+
+function searchDiagram_applyFilters(terms) {
+  var mustInclude = terms
+    .filter((term) => term.startsWith("+"))
+    .map((term) => new RegExp(term.slice(1).replace(/\*/g, ".*"), "i"));
+  var mustExclude = terms
+    .filter((term) => term.startsWith("-"))
+    .map((term) => new RegExp(term.slice(1).replace(/\*/g, ".*"), "i"));
+  var mayInclude = terms
+    .filter((term) => !term.startsWith("+") && !term.startsWith("-"))
+    .map((term) =>
+      term.startsWith("=")
+        ? new RegExp("^" + term.slice(1).replace(/\*/g, ".*") + "$", "i")
+        : new RegExp(term.replace(/\*/g, ".*"), "i")
+    );
+  return { mustInclude, mustExclude, mayInclude };
+}
+
+function searchDiagram_handleVisibility(isVisible = true) {
+  myDiagram.nodes.each(function (n) {
+    n.visible = isVisible;
+    if (!n.data.key) {
+      n.visible = false;
+    }
+  });
+  myDiagram.links.each(function (l) {
+    l.visible = isVisible;
+  });
+}
+function searchDiagram_matchNode(node, currentDepth, matches, depth) {
+  var match = searchDiagram_matchNode_doesNodeMatch(node, matches);
+
+  searchDiagram_matchNode_handleNodeHighlight(
+    node,
+    match,
+    currentDepth,
+    matches,
+    depth
+  );
+
+  return match;
+}
+
+function searchDiagram_matchNode_handleNodeHighlight(
+  node,
+  match,
+  currentDepth,
+  matches,
+  depth
+) {
+  if (match) {
+    node.visible = true;
+    node.isHighlighted = true;
+
+    if (currentDepth < 2) {
+      let connectedNodesCount = 0;
+      node.findNodesConnected().each(function (connectedNode) {
+        if (connectedNodesCount < depth) {
+          connectedNode.visible = true;
+          connectedNode.findLinksConnected().each(function (link) {
+            link.visible = true;
+          });
+          if (currentDepth === 0) {
+            searchDiagram_matchNode(
+              connectedNode,
+              currentDepth + 1,
+              matches,
+              depth
+            );
+          }
+          connectedNodesCount++;
+        }
+      });
+    }
+  }
+}
+function searchDiagram_matchNode_doesNodeMatch(node, matches) {
+  var searchDiagram_condition = (re) =>
+    re.test(node.data.key) || node.data.labels.some((label) => re.test(label));
+
+  // Check for exclusion
+  if (matches.mustExclude.some(searchDiagram_condition)) {
+    return false;
+  }
+
+  // Check for inclusion
+  return (
+    (matches.mustInclude.length === 0 ||
+      matches.mustInclude.some(searchDiagram_condition)) &&
+    (matches.mayInclude.length === 0 ||
+      matches.mayInclude.some(searchDiagram_condition))
+  );
+}
+
+const MAIN_IDEA_NODE = { color: "lightblue", shape: "Ellipse", size: "100 30" };
+const DATA_POINT_NODE = {
+  color: "lightgreen",
+  shape: "Rectangle",
+  size: "120 30",
+};
+const DECISION_NODE = { color: "red", shape: "Diamond", size: "100 30" };
+const GOAL_NODE = { color: "orange", shape: "Rectangle", size: "120 30" };
+const INNOVATION_NODE = { color: "purple", shape: "Hexagon", size: "120 30" };
+
+const INFORMATIONAL_LINK = { color: "blue" };
+const POSITIVE_RELATIONSHIP_LINK = { color: "green" };
+const WEAK_NEGATIVE_IMPACT_LINK = { color: "red", stroke: "dashed" };
+const STRONG_POSITIVE_IMPACT_LINK = { color: "green", stroke: "thick" };
+const SIGNIFICANT_INNOVATIVE_INFLUENCE_LINK = {
+  color: "purple",
+  stroke: "thick",
+};
+const INDIRECT_NEUTRAL_RELATIONSHIP_LINK = { color: "black", stroke: "dashed" };
+const NEGATIVE_RELATIONSHIP_LINK = WEAK_NEGATIVE_IMPACT_LINK;
+
+var SHAPE = {};
+
+[
+  "Rectangle",
+  "Square",
+  "RoundedRectangle",
+  "Border",
+  "Ellipse",
+  "Circle",
+  "TriangleRight",
+  "TriangleDown",
+  "TriangleLeft",
+  "TriangleUp",
+  "Triangle",
+  "Diamond",
+  "LineH",
+  "LineV",
+  "BarH",
+  "BarV",
+  "MinusLine",
+  "PlusLine",
+  "XLine",
+  "LineRight",
+  "LineDown",
+  "LineLeft",
+  "LineUp",
+].map((x) => {
+  SHAPE[x] = { shape: x };
+});
+
+var RED = { color: "red" };
+
+var YELLOW = { color: "yellow" };
+
+var BLUE = { color: "blue" };
+
+var GREEN = { color: "green" };
+
+var CRITICAL = { ...YELLOW, blink: 200 };
+
+
+function extractAndParseJSONLike(text) {
+  const jsonPattern = /\{[\s\S]*?\}/; // Regular expression to match JSON-like content
+  const jsonMatch = text.match(jsonPattern);
+
+  if (jsonMatch) {
+      const jsonString = jsonMatch[0];
+      const optn = {};
+
+      // Manually parsing the JSON-like string
+      jsonString.replace(/[\{\}]/g, '').trim().split('\n').forEach(line => {
+          const [key, value] = line.split(':').map(s => s.trim());
+          if (key && value) {
+              optn[key] = value==="false"?false:value ;
+          }
+      });
+
+      // Remove the JSON string from the original text
+      const newText = text.replace(jsonPattern, '').trim();
+
+      return {
+          optn: optn,
+          originalTextWithoutJSON: newText 
+      };
+  } else {
+      console.log("No JSON-like string found.");
+      return {
+        optn: {},
+        originalTextWithoutJSON: text
+    };
+  }
+}
+
+
+
+/*
+
+
+An example of a text-based Mind Map looks like this :
+
+```
+the sun - can generate - some energy?circle 
+              - can generate - some sound 
+              -  has - fight
+                         + that has - vivid colors
+                                            + can be - very red
+                                                           - who - will win
+                                                            - who can - do it
+
+```
+and here is the same thing but showing how to avoid repetition:
+
+```
+|| much heat | comes from | the stars 
+|| the sun | can generate | some energy 
+-- some sound
+-- some vapour
+- can produce | some energy 
+= may produce | bright light 
+= that has | vivid colors
+- can be | very red
+- can be | extremely blue
+-- hot pink
+```
+
+notice that the action phrase like 'comes from' is the link connecting nodes and always shows a simple causal or possessive phrase for logical coherence.
+
+all nodes and actions must have exactly 2 words. They must have precisely 2 words always as demonstrated in the examples. no more, no less than strictly 2 words.
+
+never use the words 'and' or 'or' anywhere.
+nodes must be only nouns, they can't contain verbs
+
+action MUST be what the node can do and NOT what it does (never use SIMPLE PRESENT TENSE)
+
+following that, please construct a text-based Mind Map that explains the topic: 'why the sun shines'
+
+when done, analyze each word stating if its a simple present tense or not 
+
+
+a + b 
+a - b
+*/
+
+function transformLines(input, delm, sec,special = " is ") {
+  let lines = ("HOME?red - . - "+location.href+" \n" + input).replaceAll(sec, "\n" + sec).split("\n");
+ 
+  let result = [];
+  let prevFirst = "";
+  let prevSecond = "";
+
+  lines.forEach((line) => {
+    var impo = line.trim().startsWith(delm);
+    let parts = line
+      .trim()
+      .split(delm)
+      .map((m) => m.trim())
+      .filter((h) => h);
+
+    if (parts.length === 3) {
+      // Line starts with two dashes
+      result.push(parts.join(delm));
+    } else if (impo) {
+      if (parts.length === 2) {
+        result.push(delm + parts.join(delm));
+      } else if (parts.length === 1) {
+        result.push(delm + delm + `${parts[0]}`);
+      }
+    } else {
+      if (parts.length === 2) {
+        result.push(parts.join(delm + special + delm));
+      } else if (parts.length === 1) {
+        result.push(`${parts[0]}` + delm + delm);
+      }
+    }
+  });
+  var prev = ["", "", ""];
+
+  var t = result.map((r) => {
+    var impo2 = r.trim().startsWith(delm);
+    var build = [];
+    var p = r.split(delm).map((j) => j.trim());
+
+    [0, 1, 2].map((k) => {
+      if (p[k].trim().startsWith(sec)) {
+        var curr = p[k].split(sec).filter((v) => v)[0];
+
+        build.push(prev[0]);
+
+        build.push(curr + "\n");
+        build.push(special);
+        build.push(curr);
+
+        prev[0] = prev[2];
+        prev[1] = special;
+
+        prev[0] = curr;
+
+        /*
+this worked
+
+       console.log('curr',curr,)
+
+
+        build.push(prev[0]);
+        build.push(special);
+  build.push(curr);
+      // build.push(curr + "\n");
+     
+
+prev[1] = special;
+      
+ //prev[0] = prev[2];
+        
+      prev[0] = curr;
+
+
+
+*/
+      } else {
+        if (p[k]) {
+          build.push(p[k]);
+          prev[k] = p[k];
+        } else {
+          if (k === 0) {
+            build.push(prev[k]);
+          } else if (k === 1) {
+            if (impo2) {
+              build.push(prev[k]);
+            } else {
+              if (k === 0) {
+                build.push(delm);
+              }
+            }
+          } else if (k === 2) {
+          }
+        }
+      }
+    });
+
+    return build.join(" " + delm + " ");
+  });
+  return t.join("\n");
+}
+
+function createVisualizationInput(
+  input,
+  search,
+  vimp = { is_branch_node_delimiter: "-", next_node_delimiter: "+", sep: ["-"] }
+) {
+
+
+
+
+  const result = extractAndParseJSONLike(input);
+
+
+  input = transformLines(
+    result.originalTextWithoutJSON,
+    vimp.is_branch_node_delimiter,
+    vimp.next_node_delimiter,result.optn.link
+  );
+  input = formatVisualizationInput(
+    input.replaceAll("***", "___").replaceAll("****", "____"),
+    vimp
+  );
+
+  // here
+
+  const lines = input
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !/^[-]+$/.test(line));
+
+  let previousFirstPart = null;
+  let previousLastPart = null;
+
+  const connections = lines.map((line) => {
+    app_log("line", line);
+    try {
+      if (line.trim().startsWith(vimp.is_branch_node_delimiter)) {
+        line = line.substring(vimp.is_branch_node_delimiter.length).trim();
+        if (line.trim().startsWith(getSep(line, vimp))) {
+          line = line.substring(1).trim();
+        }
+        line = previousFirstPart + line;
+      } else if (line.trim().startsWith(vimp.next_node_delimiter)) {
+        line = line.substring(0, vimp.next_node_delimiter.length - 1).trim();
+        if (line.trim().startsWith(getSep(line, vimp))) {
+          line = line.substring(0, 1).trim();
+        }
+        line = previousFirstPart + line;
+      }
+
+      let args = superSplit(line, getSep(line, vimp))
+        .map((arg) => arg.trim())
+        .filter((arg) => arg);
+      const lastArgIndex = args.length - 1;
+      const lastArg = args[lastArgIndex];
+      //app_log(lastArgIndex, "last arg");
+      if (
+        lastArg &&
+        ((lastArg.trim &&
+          lastArg.trim().startsWith("{") &&
+          lastArg.trim().endsWith("}")) ||
+          lastArgIndex === 3)
+      ) {
+        // args[lastArgIndex] =
+        eval(" args[lastArgIndex]= " + lastArg);
+      } else {
+        app_log("UNEXPECTED", "!!!");
+      }
+
+      if (!line.trim().startsWith(vimp.is_branch_node_delimiter)) {
+        previousFirstPart = args[0] + getSep(line, vimp);
+      } else if (!line.trim().startsWith(vimp.next_node_delimiter)) {
+        previousLastPart = getSep(line, vimp) + arg[2];
+      }
+      if (args.length) return args;
+    } catch (error) {
+      app_log("ERROR on line : ", line);
+    }
+  });
+
+  return (_) => {
+    let chain = _;
+    connections.forEach((args) => {
+      if (args) {
+        var c = chain.connect(...args);
+        //app_log("ARGS =", args);
+
+        if (c) {
+          chain = c;
+        } else {
+          app_log("❌ no no no=", args);
+        }
+        //chain.connect(...args);
+      } else {
+        app_log("🔥args=", args);
+      }
+    });
+    chain = chain.search(search);
+    return { visualization: chain,optn:  result .optn ||{} };
+  };
+}
+function getSep(line, vimp) {
+  if (line.includes(vimp.sep[0])) {
+    return vimp.sep[0];
+  } else {
+    if (vimp.sep.length && line.includes(vimp.sep[1])) {
+      return vimp.sep[1];
+    } else {
+      return vimp.sep[0];
+    }
+  }
+}
+function formatVisualizationInput(input, vimp) {
+  const lines = input
+    .trim()
+    .split("\n")
+    .filter((c) => c)
+    .map((l) => (l.endsWith(getSep(l, vimp)) ? l : l + getSep(l, vimp)));
+  let previousCommand = "";
+  let previousCommandLastPart = "";
+
+  let formattedLines = [];
+
+  lines.forEach((line, index) => {
+    line = line.trim();
+    if (line.includes("visibility")) {
+    }
+    var is_next_node_delimiter = line.startsWith(vimp.next_node_delimiter);
+    var is_branch_node_delimiter1 = line.startsWith(
+      vimp.is_branch_node_delimiter
+    );
+
+    if (is_branch_node_delimiter1) {
+      line =
+        previousCommand.trim() +
+        line.substring(vimp.is_branch_node_delimiter.length).trim();
+    } else if (is_next_node_delimiter) {
+      line =
+        previousCommandLastPart.trim() +
+        line.substring(vimp.next_node_delimiter.length).trim();
+    }
+    let commandEndIndex = line.indexOf(getSep(line, vimp));
+    if (commandEndIndex !== -1) {
+      var lastArr = line
+        .substring(commandEndIndex + 1)
+        .split(getSep(line, vimp))
+        .map((x) => x.trim())
+        .filter((f) => f);
+      previousCommandLastPart =
+        lastArr.length > 1 ? lastArr[1].trim() + getSep(line, vimp) : "";
+      if (!previousCommandLastPart) {
+        if (is_branch_node_delimiter1) {
+          //  debugger;
+        }
+      }
+      previousCommand = line.substring(0, commandEndIndex + 1);
+    }
+
+    if (!line.endsWith(getSep(line, vimp)) && !line.includes("{")) {
+      line += getSep(line, vimp);
+    }
+
+    if (line.includes("{")) {
+      let objectString = line.substring(line.indexOf("{"));
+      objectString = objectString.replace(/'/g, '"');
+
+      line = line.substring(0, line.indexOf("{")) + objectString;
+    }
+
+    formattedLines.push(line);
+  });
+  var res = formattedLines.join("\n");
+  app_log("🔥", res);
+  return res;
+}
+
+function loadAndRender() { 
+   if(VIEW_CONTEXT){
+    var menu = localStorage.getItem("conceptMapData") ||`
+    {
+      color:yellow
+      vertical: false
+      links : links
+    }
+      `;
+  if(!menu.includes(VIEW_CONTEXT)) localStorage.setItem("conceptMapData", menu+'\nWORK SPACES?green  - '+VIEW_CONTEXT+'?yellow');
+ }
+  var storedData = localStorage.getItem(VIEW_CONTEXT+"conceptMapData");
+  createVisualization(
+    createVisualizationInput(storedData || _DOC),
+    _SEARCH,
+    _DEPTH || 0
+  );
+}
+
+function createInputAndDropdown() {
+
+
+  var textBox = document.getElementById("searchBox"); //.value.toLowerCase();
+  var dropdown = document.getElementById("depthSelect");
+
+
+  textBox.value = localStorage.getItem(VIEW_CONTEXT+"textBoxValue") || "";
+
+  searchDiagram(textBox.value);
+
+  var timeout2 = null; // This will hold the timer
+  var handler = () => {
+    clearTimeout(timeout2);
+
+    timeout2 = setTimeout(() => {
+      searchDiagram(textBox.value);
+      saveToLocalStorage(textBox.value, dropdown?.value + "" || "0");
+    }, 500); // 2000 milliseconds = 2 seconds
+  };
+  textBox.addEventListener("input", handler);
+
+  // dropdown.addEventListener("change", handler);
+}
+function saveToLocalStorage(text, number) {
+  localStorage.setItem(VIEW_CONTEXT+"textBoxValue", text);
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  loadAndRender();
+});
+
+
+
+  </script>
+  
+  <script>
+
+    function toggleDataEntry() {
+      var dataEntryDiv = document.getElementById("dataEntry2");
+      var mainContent = document.querySelector(".main-content");
+
+      dataEntryDiv.style.display =
+        dataEntryDiv.style.display === "none" ? "flex" : "none";
+
+      if (dataEntryDiv.style.display === "flex") {
+        document.getElementById("coding_text_area").value =
+          localStorage.getItem(VIEW_CONTEXT+"conceptMapData") || "";
+        mainContent.style.marginLeft = "25%"; // Adjust this to match the width of your fullscreen2 div
+      } else {
+        mainContent.style.marginLeft = "0";
+      }
+    }
+    toggleDataEntry();
+
+/*
+
+
+a system depends on independent line by line data to be provided like 
+
+ALPHA :
+
+```
+a - b - c
+d - e - f
+g - DEFAULT_WORD - w
+w - DEFAULT_WORD - f
+f - DEFAULT_WORD - k
+f - x - z
+j - k - m
+j - k - y
+j - DEFAULT_WORD - r
+s - DEFAULT_WORD - d
+s - DEFAULT_WORD - x
+s - DEFAULT_WORD - v
+```
+
+the system allows for short hand to minimize repitition by leveraging the way repeating words are placed in the lines that comes before a current line 
+
+this will yield the same text as the above when expanded like 
+
+BETA :
+
+```
+a 
+- b - c
+d 
+- e - f
+g - w
++ f 
++ k
+- x - z
+j 
+- k - m
+- - y
+- r
+s
+- d
+- x
+- v
+```
+
+but users given some degree of freedom to provide unformatted list
+
+the following exemplifies the degree of freedom allowed that will result in the same list above 
+
+GAMMA :
+
+```
+a -
+- b - c
+d -
+-      -e-f -
+g - w -- -
++f +k - x  -z +++
+    j +
+- k - m - - y +
+  -r -- --
+s
+- d---
+        -x -
+- v-
+```
+
+Analyze the text line by line to figure out the rules of how to transform GAMMA to BETA  and BETA to ALPHA so you can implement it using javascript
+
+ALPHA to BETA is a problem of how to create a formatter to format the text 
+and BETA to   ALPHA  is a problem of expanding the short hand notations line by line 
+
+one approach is to consider a function  alpha = b2a(previous_array, current_line) and beta = g2b(...)
+
+what ever the approach , the current line is often fixed by considering the lines before it 
+
+
+
+
+
+
+
+*/
+
+
+function saveAndRender(leaveopen) {
+      var coding_text_area = document.getElementById("coding_text_area");
+    var formattedText = coding_text_area.value;// formatCodeBlock(coding_text_area)
+    if(!formattedText){
+    //  document.getElementById("searchBox").value = "";
+    }
+    var appendHome = "";
+   
+      localStorage.setItem(VIEW_CONTEXT+"conceptMapData", appendHome+formattedText);
+    
+      loadAndRender();
+      if (!leaveopen) toggleDataEntry();
+    }
+
+
+    (function () {
+      var coding_text_area = document.getElementById("coding_text_area");
+      var timeout = null;
+      coding_text_area.addEventListener("input", () => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          saveAndRender(true);
+        }, 500);
+      });
+    })();
+
+    toggleDataEntry();
+  </script>
+</body>
+
+</html>
